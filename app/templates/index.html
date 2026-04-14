@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>immich-to-plex</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111;
+      color: #d4d4d4;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: #e8e8e8;
+      margin-bottom: 0.2rem;
+    }
+
+    .subtitle {
+      color: #777;
+      font-size: 0.85rem;
+      margin-bottom: 2rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+    }
+
+    .card-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+      margin-bottom: 0.4rem;
+    }
+
+    .card-value {
+      font-size: 1rem;
+      color: #e0e0e0;
+      word-break: break-all;
+    }
+
+    .card-value.mono {
+      font-family: 'Courier New', monospace;
+      font-size: 0.88rem;
+    }
+
+    .status-success { color: #4ade80; }
+    .status-error   { color: #f87171; }
+    .status-running { color: #facc15; }
+
+    .stats-row {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 0.8rem 1.2rem;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #7c9ef8;
+    }
+
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #666;
+    }
+
+    .error-box {
+      background: #2a1515;
+      border: 1px solid #5c2626;
+      border-radius: 6px;
+      padding: 0.8rem 1rem;
+      color: #f87171;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+
+    form { margin-bottom: 1.5rem; }
+
+    button {
+      background: #3b5bdb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem 1.4rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover  { background: #4c6ef5; }
+    button:active { background: #2f4ac0; }
+    button:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    .log-header {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+
+    pre.log {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 1rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: #aaa;
+      overflow-x: auto;
+      max-height: 420px;
+      overflow-y: scroll;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .tag-success { background: #14532d; color: #4ade80; }
+    .tag-error   { background: #450a0a; color: #f87171; }
+    .tag-running { background: #422006; color: #facc15; }
+  </style>
+</head>
+<body>
+  <h1>immich-to-plex</h1>
+  <p class="subtitle">Immich albums → Plex-compatible symlink library</p>
+
+  <!-- Config -->
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">Immich URL</div>
+      <div class="card-value mono">{{ immich_url }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Output Directory</div>
+      <div class="card-value mono">{{ output_dir }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Sync Schedule (cron)</div>
+      <div class="card-value mono">{{ sync_interval }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Next Scheduled Sync</div>
+      <div class="card-value">{{ next_sync_time }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Last Sync</div>
+      <div class="card-value">{{ last_sync_time }}</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Last Result</div>
+      <div class="card-value">
+        {% if is_syncing %}
+          <span class="tag tag-running">Running…</span>
+        {% elif last_sync_status == 'Success' %}
+          <span class="tag tag-success">Success</span>
+        {% elif last_sync_status == 'Error' %}
+          <span class="tag tag-error">Error</span>
+        {% else %}
+          <span>—</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if last_sync_error %}
+  <div class="error-box">{{ last_sync_error }}</div>
+  {% endif %}
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-number">{{ albums_found }}</div>
+      <div class="stat-label">Albums</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">{{ symlinks_created }}</div>
+      <div class="stat-label">Links Created</div>
+    </div>
+    <div class="stat">
+      <div class="stat-number">{{ symlinks_updated }}</div>
+      <div class="stat-label">Links Updated</div>
+    </div>
+  </div>
+
+  <!-- Trigger -->
+  <form method="POST" action="/trigger">
+    <button type="submit" {% if is_syncing %}disabled{% endif %}>
+      {% if is_syncing %}Sync in progress…{% else %}Sync Now{% endif %}
+    </button>
+  </form>
+
+  <!-- Logs -->
+  <div class="log-header">Last 50 log lines</div>
+  <pre class="log">{% if log_lines %}{{ log_lines | join('\n') }}{% else %}No log entries yet.{% endif %}</pre>
+
+</body>
+</html>

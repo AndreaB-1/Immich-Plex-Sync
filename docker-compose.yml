@@ -1,0 +1,22 @@
+services:
+  immich-to-plex:
+    build: .
+    container_name: immich-to-plex
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8585}:${WEB_PORT:-8585}"
+    volumes:
+      # Mount the same photo library that Immich uses (read-only).
+      # The path on the LEFT must match the path Immich stores files under
+      # so that symlinks resolve correctly inside this container.
+      - /path/to/immich/library:/photos:ro
+      # Output dir where album symlink folders will be created.
+      # Point your Plex photo library at the HOST path on the left.
+      - /path/to/plex/photos:/output
+    environment:
+      - IMMICH_URL=${IMMICH_URL:-http://192.168.1.10:2283}
+      - IMMICH_API_KEY=${IMMICH_API_KEY:-your_api_key_here}
+      - OUTPUT_DIR=${OUTPUT_DIR:-/output}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-0 2 * * *}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WEB_PORT=${WEB_PORT:-8585}
