@@ -1,6 +1,7 @@
 services:
   immich-to-plex:
     image: ghcr.io/andreab-1/immich-plex-sync:latest
+    build: .
     container_name: immich-to-plex
     restart: unless-stopped
     ports:
