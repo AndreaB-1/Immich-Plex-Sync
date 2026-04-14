@@ -135,6 +135,13 @@ def _run_sync(client: ImmichClient, output_dir: str, result: SyncResult) -> None
     # Clean up stale directories
     _cleanup_stale_dirs(output_dir, current_dir_names, result)
 
+def _rewrite_path(p: str) -> str:
+    """Rewrite symlink target path using env var prefixes."""
+    src = os.environ.get("SYMLINK_SOURCE_PREFIX", "").rstrip("/")
+    tgt = os.environ.get("SYMLINK_TARGET_PREFIX", "").rstrip("/")
+    if src and tgt and p.startswith(src):
+        return tgt + p[len(src):]
+    return p
 
 def _sync_album_assets(assets: list[dict], album_dir: str, result: SyncResult) -> None:
     """Create/update symlinks for all assets in an album directory."""
@@ -153,15 +160,15 @@ def _sync_album_assets(assets: list[dict], album_dir: str, result: SyncResult) -
         if not os.path.exists(original_path):
             logger.warning("Source file does not exist, skipping: %s", original_path)
             continue
-
+        symlink_target = _rewrite_path(original_path)
         if os.path.islink(link_path):
             existing_target = os.readlink(link_path)
-            if existing_target == original_path:
+            if existing_target == symlink_target:
                 result.symlinks_skipped += 1
                 continue
             # Wrong target — recreate
             os.remove(link_path)
-            os.symlink(original_path, link_path)
+            os.symlink(symlink_target, link_path)
             result.symlinks_updated += 1
             logger.debug("Updated symlink: %s → %s", link_path, original_path)
         elif os.path.exists(link_path):
@@ -169,7 +176,7 @@ def _sync_album_assets(assets: list[dict], album_dir: str, result: SyncResult) -
             logger.warning("Real file at symlink path, skipping: %s", link_path)
             result.symlinks_skipped += 1
         else:
-            os.symlink(original_path, link_path)
+            os.symlinksymlink_target, link_path)
             result.symlinks_created += 1
             logger.debug("Created symlink: %s → %s", link_path, original_path)
 
